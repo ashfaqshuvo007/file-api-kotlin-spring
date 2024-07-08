@@ -1,0 +1,432 @@
+openapi: 3.0.0
+info:
+  version: '1.0.0'
+  title: UploadedFile API
+  description: This is a sample file upload/download rest api built as a technical test assignment for Mercans. It
+    describes the endpoints for file CRUD operations, using spring-kotlin
+    and  mongodb as database.
+
+servers:
+    - url: "http://localhost:6011/"
+paths:
+  /status:
+    get:
+      summary: Status
+      description: Get Status.
+      responses:
+        '200':
+          description: It's a response.
+  /files:
+      post:
+          summary: Upload a new file
+          description: Uploads a new file. Takes a multipart/form-data with metadata fields and file content.
+            Returns a newly generated unique token for the file. Saves the file in local file system disk and
+            metadata in the database.
+          requestBody:
+              description: Multipart Form data with file
+              content:
+                  multipart/form-data:
+                      schema:
+                          type: object
+                          properties:
+                              name:
+                                  type: string
+                              contentType:
+                                  type: string
+                              source:
+                                  type: string
+                              expireTime:
+                                  type: string
+                              content:
+                                  type: string
+                                  format: binary
+              required: true
+          responses:
+              200:
+                  description: Successful Upload of file and meta data creation in database.
+                  content:
+                      application/json:
+                          schema:
+                              type: object
+                              properties:
+                                  data:
+                                      type: object
+                                      properties:
+                                          token:
+                                              type: string
+                                              format: uuid
+                                              description: The token of the created metadata record for the file.
+                                  error:
+                                      type: array
+                                      description: Empty array of errors for successful operation
+                                      example: []
+                                  status:
+                                      type: integer
+                                      description: HTTP status code for successful POST request i.e. 200, 201
+                                      default: 200
+              401:
+                  $ref: "#/components/responses/UnauthorizedError"
+              500:
+                  $ref: "#/components/responses/InternalError"
+              503:
+                  $ref: "#/components/responses/ServiceUnavailableError"
+              400:
+                  $ref: "#/components/responses/BadRequestError"
+              404:
+                  $ref: "#/components/responses/NotFoundError"
+
+  /file/{token}:
+      get:
+          summary: Get a file by token
+          description: Retrieves a file using the `token` used in the URL parameter. Returns a file as a
+            resource with additional headers about the file metadata.
+          parameters:
+              - in: path
+                name: token
+                schema:
+                    type: string
+                    format: uuid
+                required: true
+                description: Unique token of the file to get.
+          responses:
+              200:
+                  description: OK
+                  content:
+                      application/*:
+                          schema:
+                              type: string
+                              format: binary
+                      image/*:
+                          schema:
+                              type: string
+                              format: binary
+                  headers:
+                      X-Filename:
+                          $ref: "#/components/headers/X-Filename"
+                      X-Filesize:
+                          $ref: "#/components/headers/X-Filesize"
+                      X-CreateTime:
+                          $ref: "#/components/headers/X-CreateTime"
+                      Content-Type:
+                          $ref: "#/components/headers/Content-Type"
+              401:
+                  $ref: "#/components/responses/UnauthorizedError"
+              500:
+                  $ref: "#/components/responses/InternalError"
+              503:
+                  $ref: "#/components/responses/ServiceUnavailableError"
+              400:
+                  $ref: "#/components/responses/BadRequestError"
+              404:
+                  $ref: "#/components/responses/NotFoundError"
+      delete:
+          summary: Delete file metadata
+          description: Deletes a file from disk and its metadata from database.
+          parameters:
+              -   in: path
+                  name: token
+                  schema:
+                      type: string
+                      format: uuid
+                  required: true
+                  description: Unique token of the file to delete.
+          responses:
+              200:
+                  description: Successful deletion of file from disk and meta data from database.
+                  content:
+                      application/json:
+                          schema:
+                              type: object
+                              properties:
+                                  data:
+                                      type: string
+                                      description: Deletion success message.
+                                      default: File deleted successfully!
+                                  error:
+                                      type: array
+                                      description: Empty array of errors for successful operation
+                                      default: []
+                                  status:
+                                      type: integer
+                                      description: HTTP status code for successful POST request i.e. 200, 201
+                                      default: 200
+              401:
+                  $ref: "#/components/responses/UnauthorizedError"
+              500:
+                  $ref: "#/components/responses/InternalError"
+              503:
+                  $ref: "#/components/responses/ServiceUnavailableError"
+              400:
+                  $ref: "#/components/responses/BadRequestError"
+              404:
+                  $ref: "#/components/responses/NotFoundError"
+
+  /files/metas:
+      post:
+        summary: Get file metadata
+        description: Takes a json with a singleton or multiple token list and returns metadata about the files.
+          Throws error if metadata for any file does not exist.
+        requestBody:
+            description: JSON array object of tokens
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            tokens:
+                                type: array
+                                items:
+                                    description: tokens of files
+                                    type: string
+        responses:
+            200:
+                description: OK
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/UploadedFile"
+            401:
+                $ref: "#/components/responses/UnauthorizedError"
+            500:
+                $ref: "#/components/responses/InternalError"
+            503:
+                $ref: "#/components/responses/ServiceUnavailableError"
+            400:
+                $ref: "#/components/responses/BadRequestError"
+            404:
+                $ref: "#/components/responses/NotFoundError"
+
+security:
+  - basicAuth: []
+components:
+    headers:
+        X-Filename:
+            description: Name of the file downloaded
+            schema:
+                type: string
+            example: example.pdf
+        X-Filesize:
+            description: Size of the file
+            schema:
+                type: string
+            example: 525
+        X-CreateTime:
+            description: Datetime when the file was uploaded.
+            schema:
+                type: string
+            example: 2019-11-21T15:42:22Z
+        Content-Type:
+            description: Type of content of the file
+            schema:
+                type: string
+            example: application/pdf
+    responses:
+        UnauthorizedError:
+            description: Authentication information is missing or invalid
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            data:
+                                type: object
+                                default: null
+                            errors:
+                                type: array
+                                items:
+                                    type: object
+                                    properties:
+                                        message:
+                                            type: string
+                                            description: Actual cause for the error with stacktrace
+                                            default: Authentication information missing.
+
+                                        code:
+                                            type: string
+                                            description: HTTP code for the error
+                                            default: 401
+                            status:
+                                type: integer
+                                default: 401
+
+
+        ServiceUnavailableError:
+            description: Internal Exception (Unknown)
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            data:
+                                type: object
+                                default: null
+                            errors:
+                                type: array
+                                items:
+                                    type: object
+                                    properties:
+                                        message:
+                                            type: string
+                                            description: Actual cause for the error with stacktrace
+                                            default: 503 service unavailable.
+
+                                        code:
+                                            type: string
+                                            description: HTTP code for the error
+                                            default: 503
+                            status:
+                                type: integer
+                                default: 503
+        InternalError:
+            description: Internal Server Error. Server unable to handle request.
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            data:
+                                type: object
+                                default: null
+                            errors:
+                                type: array
+                                items:
+                                    type: object
+                                    properties:
+                                        message:
+                                            type: string
+                                            description: Actual cause for the error with stacktrace
+                                            default: 500 Internal Server Error. Server unable to handle request.
+
+                                        code:
+                                            type: string
+                                            description: HTTP code for the error
+                                            default: 500
+                            status:
+                                type: integer
+                                default: 500
+        BadRequestError:
+            description: Malformed url or Missing url params
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            data:
+                                type: object
+                                default: null
+                            errors:
+                                type: array
+                                items:
+                                    type: object
+                                    properties:
+                                        message:
+                                            type: string
+                                            description: Actual cause for the error with stacktrace
+                                            default: 400 Bad Request. Check Url or Params.
+
+                                        code:
+                                            type: string
+                                            description: HTTP code for the error
+                                            default: 400
+                            status:
+                                type: integer
+                                default: 400
+        NotFoundError:
+            description: FileNotFound Exception
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            data:
+                                type: object
+                                default: null
+                            errors:
+                                type: array
+                                items:
+                                    type: object
+                                    properties:
+                                        message:
+                                            type: string
+                                            description: Actual cause for the error with stacktrace
+                                            default: 404 File or resource not found.
+
+                                        code:
+                                            type: string
+                                            description: HTTP code for the error
+                                            default: 404
+                            status:
+                                type: integer
+                                default: 404
+        ParameterBindError:
+            description: Invalid File or parameter type
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            data:
+                                type: object
+                                default: null
+                            errors:
+                                type: array
+                                items:
+                                    type: object
+                                    properties:
+                                        message:
+                                            type: string
+                                            description: Actual cause for the error with stacktrace
+                                            default: 503 Invalid file or Param type.
+
+                                        code:
+                                            type: string
+                                            description: HTTP code for the error
+                                            default: 503
+                            status:
+                                type: integer
+                                default: 503
+    schemas:
+        UploadedFile:
+            type: object
+            properties:
+                data:
+                    type: object
+                    properties:
+                        files:
+                            type: object
+                            properties:
+                                token:
+                                    type: string
+                                    format: uuid
+                                    example: 3076b069-37e3-4a93-81d0-65ee01460abe
+                                filename:
+                                    type: string
+                                    example: Example.pdf
+                                size:
+                                    type: string
+                                    example: 619
+                                contentType:
+                                    type: string
+                                    example: application/pdf
+                                source:
+                                    type: string
+                                    example: Timesheet
+                                expireTime:
+                                    type: string
+                                    format: date
+                                    example: 2023-06-22
+                                createTime:
+                                    type: string
+                                    format: date
+                                    example: 2023-05-23T11:16:30.080+00:00
+                                meta:
+                                    type: object
+                                    example: {"createdEmployeeId" : 1}
+                error:
+                    type: array
+                    description: Empty array of errors for successful operation
+                    example: [ ]
+                status:
+                    type: integer
+                    description: HTTP status code for successful POST request i.e. 200, 201
+                    default: 200

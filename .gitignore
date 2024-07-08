@@ -1,0 +1,8 @@
+/.idea/
+/.run/
+target/
+logs/
+*.iml
+variables.env
+app.properties
+uploads
